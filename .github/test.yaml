@@ -1,0 +1,13 @@
+name: UtilMeta Proxy Tests
+# run before every pull request and every push
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'tests/**'
+      - 'utilmeta_proxy/**'
+  push:
+    paths:
+      - '.github/workflows/**'
+      - 'tests/**'
+      - 'utilmeta_proxy/**'

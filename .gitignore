@@ -1,0 +1,24 @@
+/.idea
+*/.idea
+*/__pycache__
+__pycache__/
+*.py[cod]
+.coverage
+.obsidian
+*/.coverage
+*/.obsidian
+
+env
+env.prod
+.env
+
+utilmeta_proxy_ops
+*.sqlite3
+*/restats
+/.ext
+/build
+/dist
+
+# .ext/ is used to store pre-developer files that helps development
+/.pytest_cache
+.cache

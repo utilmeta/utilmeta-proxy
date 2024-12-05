@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling >= 1.13.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "UtilMeta Proxy"
+description = "A proxy service that connect API services in a internal network to UtilMeta cluster"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    { name = "Xulin Zhou (voidZXL)", email = "zxl@utilmeta.com" },
+]
+keywords = ["UtilMeta", "backend", "proxy", "cluster"]
+classifiers = [
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = [
+    "utilmeta>=2.7.0",
+    "starlette>=0.27.0",
+    "httpx>=0.25.2",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://utilmeta.com"
+Documentation = "https://docs.utilmeta.com/py/en"
+Repository = "https://github.com/utilmeta/utilmeta-proxy"
+
+[tool.hatch.version]
+path = "utilmeta/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/docs",
+    "/tests"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["utilmeta_proxy"]
+
+[project.scripts]
+utilmeta-proxy = "utilmeta_proxy.bin.cmd:main"
