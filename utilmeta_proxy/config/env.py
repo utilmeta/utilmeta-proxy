@@ -17,9 +17,9 @@ class ServiceEnvironment(Env):
     # --------------------------
 
     BASE_URL: str
+    BIND_PORT: int = None
     PRIVATE: bool = False       # whether this is an intranet cluster
     VALIDATE_FORWARD_IPS: bool = False
-    VALIDATE_REGISTRY_ADDR: bool = True
 
     SUPERVISOR_BASE_URL: str
     SUPERVISOR_CLUSTER_ID: str
@@ -32,3 +32,22 @@ class ServiceEnvironment(Env):
 
 # env = ServiceEnvironment(sys_env='UTILMETA_PROXY_')
 env = ServiceEnvironment(sys_env='UTILMETA_PROXY_')
+
+import warnings
+from utilmeta.utils import get_ip
+from ipaddress import ip_address
+import base64
+
+try:
+    PUBLIC_BASE_URL = ip_address(get_ip(env.BASE_URL)).is_global
+except Exception as e:
+    warnings.warn(f'proxy url IP load failed: {e}')
+    PUBLIC_BASE_URL = False
+
+CLUSTER_KEY = env.SUPERVISOR_CLUSTER_KEY
+
+if not CLUSTER_KEY.startswith('{') or not CLUSTER_KEY.endswith('}'):
+    # BASE64
+    CLUSTER_KEY = base64.decodebytes(CLUSTER_KEY.encode()).decode()
+
+__all__ = ['env', 'CLUSTER_KEY', 'PUBLIC_BASE_URL']

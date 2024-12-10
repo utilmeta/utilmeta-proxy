@@ -2,7 +2,7 @@ from utilmeta.core import api, request
 from utilmeta.ops.proxy import RegistrySchema
 from utilmeta.ops.config import Operations
 from utilmeta.utils import exceptions, url_join, fast_digest, json_dumps, adapt_async
-from config.env import env
+from config.env import env, CLUSTER_KEY, PUBLIC_BASE_URL
 from urllib.parse import urlparse
 from .models import Service, ServiceNameRecord, Instance
 from .schema import InstanceRegistrySchema, InstanceSchema
@@ -19,17 +19,18 @@ class RegistryAPI(api.API):
 
     # @orm.Atomic('default')
     async def post(self, data: RegistrySchema = request.Body) -> InstanceSchema:
-        if env.PRIVATE:
-            if not self.request.ip_address.is_private:
-                raise exceptions.NotFound
         parsed = urlparse('http://' + data.address)
         host = parsed.hostname
         port = parsed.port or None
-        if env.VALIDATE_REGISTRY_ADDR:
-            if str(self.request.ip_address) != host:
-                raise exceptions.PermissionDenied(f'service register failed, your request ip:'
-                                                  f' {self.request.ip_address} is inconsistent '
-                                                  f'to instance host: {host}')
+
+        if env.PRIVATE:
+            if not self.request.ip_address.is_private:
+                raise exceptions.NotFound
+            if not PUBLIC_BASE_URL:
+                if str(self.request.ip_address) != host:
+                    raise exceptions.PermissionDenied(f'service register failed, your request ip:'
+                                                      f' {self.request.ip_address} is inconsistent '
+                                                      f'to instance host: {host}')
 
         from utilmeta.ops.models import Resource
         instance_res: Resource = await Resource.filter(
@@ -116,19 +117,21 @@ class RegistryAPI(api.API):
             # has resources to sync
             # if node has checked etag and sent None, we just ignore
             # sync resources
-            await run_in_threadpool(self.sync_supervisor, service, data=inst_registry)
+            await run_in_threadpool(self.sync_supervisor, service,
+                                    resources=data.resources,
+                                    resources_etag=inst_registry.resources_etag)
 
         return await InstanceSchema.ainit(inst_registry.pk)
 
     @adapt_async(close_conn=ops_config.db_alias)
-    def sync_supervisor(self, service: Service, data: InstanceRegistrySchema):
+    def sync_supervisor(self, service: Service, resources: dict, resources_etag: str = None):
         from utilmeta.ops.models import Supervisor
         from utilmeta.ops.client import SupervisorClient, ResourcesSchema
         from utilmeta.ops.resources import ResourcesManager
 
         if not service.node_id:
             return
-        if not data.resources:
+        if not resources:
             return
         supervisor: Supervisor = Supervisor.filter(
             service=service.name,
@@ -136,10 +139,11 @@ class RegistryAPI(api.API):
         ).first()
         if not supervisor:
             return
-        if supervisor.resources_etag and data.resources_etag == supervisor.resources_etag:
+        if supervisor.resources_etag and resources_etag == supervisor.resources_etag:
             print('resource is identical to supervisor')
             return
 
+        manager = ResourcesManager(ops_config)
         with SupervisorClient(
             base_url=supervisor.base_url,
             node_key=supervisor.public_key,
@@ -148,7 +152,7 @@ class RegistryAPI(api.API):
             fail_silently=True
         ) as client:
             resp = client.upload_resources(
-                data=ResourcesSchema(data.resources)
+                data=ResourcesSchema(resources)
             )
             if not resp.success:
                 raise ValueError(f'sync to supervisor[{supervisor.node_id}]'
@@ -158,7 +162,7 @@ class RegistryAPI(api.API):
                 print(f'update supervisor and resources service name to [{service.name}]')
                 supervisor.service = service.name
                 supervisor.save(update_fields=['service'])
-                ResourcesManager.update_supervisor_service(service.name, node_id=supervisor.node_id)
+                manager.update_supervisor_service(service.name, node_id=supervisor.node_id)
 
             if resp.status == 304:
                 print('[304] resources is identical to the remote supervisor, done')
@@ -168,7 +172,7 @@ class RegistryAPI(api.API):
                 supervisor.resources_etag = resp.result.resources_etag
                 supervisor.save(update_fields=['resources_etag'])
 
-            ResourcesManager.save_resources(
+            manager.save_resources(
                 resp.result.resources,
                 supervisor=supervisor
             )
@@ -189,14 +193,14 @@ class RegistryAPI(api.API):
         supervisor_obj = Supervisor.objects.create(
             service=service.name,
             base_url=env.SUPERVISOR_BASE_URL,
-            init_key=env.SUPERVISOR_CLUSTER_KEY,  # for double-check
+            init_key=CLUSTER_KEY,  # for double-check
             ops_api=service.ops_api or data.ops_api
         )
 
         try:
             with SupervisorClient(
                 base_url=env.SUPERVISOR_BASE_URL,
-                cluster_key=env.SUPERVISOR_CLUSTER_KEY,
+                cluster_key=CLUSTER_KEY,
                 fail_silently=True,
                 cluster_id=env.SUPERVISOR_CLUSTER_ID,
             ) as cli:
@@ -234,3 +238,6 @@ class RegistryAPI(api.API):
             supervisor_obj.delete()
             self.node_id = None
             raise e
+
+        # sync after connect
+        self.sync_supervisor(service, resources=data.resources)

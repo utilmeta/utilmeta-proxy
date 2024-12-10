@@ -3,7 +3,7 @@ requires = ["hatchling >= 1.13.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "UtilMeta Proxy"
+name = "utilmeta-proxy"
 description = "A proxy service that connect API services in a internal network to UtilMeta cluster"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -51,7 +51,7 @@ Documentation = "https://docs.utilmeta.com/py/en"
 Repository = "https://github.com/utilmeta/utilmeta-proxy"
 
 [tool.hatch.version]
-path = "utilmeta/__init__.py"
+path = "utilmeta_proxy/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 exclude = [

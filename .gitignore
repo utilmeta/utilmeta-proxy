@@ -11,6 +11,9 @@ __pycache__/
 env
 env.prod
 .env
+.env.*
+
+*.whl
 
 utilmeta_proxy_ops
 *.sqlite3

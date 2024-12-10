@@ -1,7 +1,7 @@
 from utilmeta.core import api, request, cli, response
 from utype.types import *
 from utilmeta.utils import exceptions, DEFAULT_IDEMPOTENT_METHODS, DEFAULT_RETRY_ON_STATUSES, Headers, is_hop_by_hop
-from config.env import env
+from config.env import env, CLUSTER_KEY
 from domain.service.models import Service, Instance
 from django.db import models
 from utilmeta.ops.config import Operations
@@ -287,7 +287,7 @@ class ProxyAPI(api.API):
 
         from utilmeta.ops.key import decode_token
         try:
-            token_data = decode_token(self.proxy_authorization, public_key=env.SUPERVISOR_CLUSTER_KEY)
+            token_data = decode_token(self.proxy_authorization, public_key=CLUSTER_KEY)
         except ValueError:
             raise exceptions.BadRequest('Invalid token format', state='token_expired')
 

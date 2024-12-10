@@ -1,4 +1,3 @@
-from utilmeta.ops.client import SupervisorClient
 from config.env import env
 from utilmeta.ops.config import Operations
 from utilmeta.ops.connect import connect_supervisor
@@ -48,7 +47,7 @@ def connect_to_supervisor():
     config = Operations.config()
     if not config:
         return
-    if not config.is_local:
+    if config.is_local:
         print(f'UtilMeta cluster proxy cannot be local, please specify the BASE_URL env var')
         return
     connect_task(config)

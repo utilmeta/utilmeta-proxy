@@ -10,7 +10,7 @@ sys.path.insert(0, PROJECT_ROOT)
 from config.conf import configure
 from config.env import env
 from utilmeta_proxy import __version__
-port = urllib.parse.urlparse(env.BASE_URL).port
+port = urllib.parse.urlparse(env.BASE_URL).port or env.BIND_PORT or 8888
 
 service = UtilMeta(
     __name__,
