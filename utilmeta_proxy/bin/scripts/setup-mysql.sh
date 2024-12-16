@@ -3,7 +3,6 @@
 set -e
 
 DEFAULT_PORT=3306
-
 # Functions
 detect_package_manager() {
     if command -v apt >/dev/null 2>&1; then
@@ -30,39 +29,81 @@ install_mysql() {
     fi
 }
 
-configure_mysql_port() {
-    local port=$1
-    local config_file="/etc/mysql/mysql.conf.d/mysqld.cnf"
+configure_mysql_port_and_host() {
+    if [[ $port == "$DEFAULT_PORT" && $host == "$DEFAULT_HOST" ]]; then
+        echo "Using default port $DEFAULT_PORT and host $DEFAULT_HOST"
+        return
+    fi
 
-    if [[ -f $config_file ]]; then
-        echo "Configuring MySQL to use port $port in $config_file..."
-        sudo sed -i "s/^#port.*/port = $port/" $config_file
-        sudo sed -i "s/^port.*/port = $port/" $config_file
+    if [[ -f /etc/mysql/mysql.conf.d/mysqld.cnf ]]; then
+        # Debian-based systems
+        local config_file="/etc/mysql/mysql.conf.d/mysqld.cnf"
+    elif [[ -f /etc/my.cnf ]]; then
+        # RHEL-based systems
+        local config_file="/etc/my.cnf"
     else
-        echo "Configuration file $config_file not found!"
+        echo "MySQL configuration file not found!"
         exit 1
+    fi
+
+    echo "Configuring MySQL to use port $port and listen on host $host in $config_file..."
+
+    if [[ "$host" != "127.0.0.1" && "$host" != "localhost" ]]; then
+      if grep -q '^bind-address' $config_file; then
+          sudo sed -i "s/^bind-address.*/bind-address = $host/" $config_file
+      else
+          echo "bind-address = $host" | sudo tee -a $config_file
+      fi
+    fi
+
+    if [[ "$port" -ne $DEFAULT_PORT ]]; then
+      if grep -q '^port' $config_file; then
+          sudo sed -i "s/^port.*/port = $port/" $config_file
+      else
+          echo "port = $port" | sudo tee -a $config_file
+      fi
     fi
 }
 
 start_mysql() {
+    local package_manager
+    package_manager=$(detect_package_manager)
     echo "Starting MySQL service..."
-    sudo systemctl restart mysql
+    if [[ "$package_manager" == "yum" ]]; then
+      sudo systemctl start mysqld
+    else
+      sudo systemctl start mysql
+    fi
+    # set root password
+}
+
+retrieve_temporary_root_password() {
+    if [[ -f /var/log/mysqld.log ]]; then
+        # RHEL-based systems log
+        grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}' | tail -1
+    elif [[ -f /var/log/mysql/error.log ]]; then
+        # Debian-based systems log
+        grep 'temporary password' /var/log/mysql/error.log | awk '{print $NF}' | tail -1
+    else
+        echo "Temporary root password not found. Please check MySQL logs manually."
+        exit 1
+    fi
 }
 
 check_db_exists() {
     local db_name=$1
-    mysql -u root -e "SHOW DATABASES LIKE '$db_name';" | grep -q "$db_name"
+    mysql -u root -p"$root_password" --connect-expired-password -e "SHOW DATABASES LIKE '$db_name';" | grep -q "$db_name"
 }
 
 create_database() {
     local db_name=$1
     echo "Creating database '$db_name'..."
-    mysql -u root -e "CREATE DATABASE $db_name;"
+    mysql -u root -p"$root_password" --connect-expired-password -e "CREATE DATABASE $db_name;"
 }
 
 check_user_exists() {
     local user=$1
-    mysql -u root -e "SELECT User FROM mysql.user WHERE User = '$user';" | grep -q "$user"
+    mysql -u root -p"$root_password" --connect-expired-password -e "SELECT User FROM mysql.user WHERE User = '$user';" | grep -q "$user"
 }
 
 # Function to create a user if it does not exist
@@ -70,22 +111,42 @@ create_user() {
     local user=$1
     local pass=$2
     echo "Creating user $user..."
-    mysql -u root -e "CREATE USER '$user'@'%' IDENTIFIED BY '$pass';"
+    mysql -u root -p"$root_password" --connect-expired-password -e "CREATE USER '$user'@'%' IDENTIFIED BY '$pass';"
 }
+
+grant_access() {
+    local user=$1
+    local db=$2
+    echo "Grant $db to $user..."
+    mysql -u root -p"$root_password" --connect-expired-password -e "GRANT ALL PRIVILEGES ON $db.* TO '$user'@'%';"
+}
+
+reset_root_password() {
+    local temporary_password=$1
+    echo "Resetting MySQL root password..."
+    mysql -u root -p"$temporary_password" --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$password';"
+}
+
+root_password=""
 
 # Check if MySQL is installed
 if ! command -v mysql >/dev/null 2>&1; then
     install_mysql
 else
     echo "MySQL is already installed."
+    echo "Enter the MySQL root password (press enter to use temporary password):"
+    read -sr root_password
+fi
+
+if [ ${#root_password} -eq 0 ]; then
+    echo 'using temporary root password to reset password'
+    tmp_password=$(retrieve_temporary_root_password)
+    reset_root_password "$tmp_password" "$password"
+    root_password=$password
 fi
 
 # Configure MySQL port only if it's not the default
-if [[ "$port" -ne $DEFAULT_PORT ]]; then
-    configure_mysql_port "$port"
-else
-    echo "MySQL is already configured to use the default port $DEFAULT_PORT."
-fi
+configure_mysql_port_and_host
 
 # Start MySQL service
 start_mysql

@@ -12,6 +12,7 @@ env
 env.prod
 .env
 .env.*
+*.pid
 
 *.whl
 

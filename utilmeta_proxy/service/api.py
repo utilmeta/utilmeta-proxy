@@ -1,9 +1,8 @@
 from utilmeta.core import api, response
-from service.proxy.api import ProxyAPI
-# from service.request.api import RequestAPI
-from domain.service.api import RegistryAPI
 from utilmeta.ops import __spec_version__
-from config.env import env
+from utilmeta_proxy.config.env import env
+from utilmeta_proxy.domain.service.api import RegistryAPI
+from .proxy.api import ProxyAPI
 
 
 class ErrorResponse(response.Response):

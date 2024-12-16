@@ -16,7 +16,24 @@ detect_package_manager() {
     fi
 }
 
+add_postgresql_repository() {
+    local package_manager
+    package_manager=$(detect_package_manager)
+
+    echo "Adding PostgreSQL official repository..."
+    if [[ "$package_manager" == "apt" ]]; then
+        # Add PostgreSQL repository for Debian-based systems
+        sudo sh -c "echo 'deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
+        wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+        sudo apt update
+    elif [[ "$package_manager" == "yum" ]]; then
+        # Add PostgreSQL repository for RHEL-based systems
+        sudo yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-$(rpm -E %rhel)/pgdg-redhat-repo-latest.noarch.rpm
+    fi
+}
+
 install_postgresql() {
+    add_postgresql_repository
     local package_manager
     package_manager=$(detect_package_manager)
 
@@ -33,22 +50,44 @@ install_postgresql() {
 
 get_postgresql_version() {
     # Extract the PostgreSQL version
-    psql_version=$(psql --version | awk '{print $3}' | cut -d. -f1,2)
+    psql_version=$(psql --version | awk '{print $3}' | cut -d. -f1)
     echo "$psql_version"
 }
 
-configure_postgresql_port() {
-    local port=$1
+configure_postgresql_port_and_host() {
     local version
     version=$(get_postgresql_version)
-    local config_file="/etc/postgresql/$version/main/postgresql.conf"
+
+    if [[ -d /etc/postgresql ]]; then
+        # Debian-based systems
+        local config_file="/etc/postgresql/$version/main/postgresql.conf"
+        local hba_file="/etc/postgresql/$version/main/pg_hba.conf"
+    elif [[ -f /var/lib/pgsql/data/postgresql.conf ]]; then
+        # RHEL-based systems
+        local config_file="/var/lib/pgsql/data/postgresql.conf"
+        local hba_file="/var/lib/pgsql/data/pg_hba.conf"
+    else
+        echo "PostgreSQL configuration file not found!"
+        exit 1
+    fi
 
     if [[ -f $config_file ]]; then
-        echo "Configuring PostgreSQL to use port $port in $config_file..."
-        sudo sed -i "s/^#port = .*/port = $port/" $config_file
-        sudo sed -i "s/^port = .*/port = $port/" $config_file
+        echo "Configuring PostgreSQL to use port $port and listen on host $host in $config_file..."
+
+        if [[ "$port" -ne $DEFAULT_PORT ]]; then
+          sudo sed -i "s/^#port = .*/port = $port/" $config_file
+          sudo sed -i "s/^port = .*/port = $port/" $config_file
+        fi
+
+        if [[ "$host" != "127.0.0.1" && "$host" != "localhost" ]]; then
+            sudo sed -i "s/^#listen_addresses = .*/listen_addresses = '$host'/" $config_file
+            sudo sed -i "s/^listen_addresses = .*/listen_addresses = '$host'/" $config_file
+
+            # Update pg_hba.conf to allow connections from the specified host
+            echo "host    all             all             $host/32            md5" | sudo tee -a $hba_file
+        fi
     else
-        echo "Configuration file $config_file not found for PostgreSQL version $version!"
+        echo "Configuration file $config_file not found!"
         exit 1
     fi
 }
@@ -105,9 +144,7 @@ else
 fi
 
 # Configure PostgreSQL port only if it's not the default
-if [[ "$port" -ne $DEFAULT_PORT ]]; then
-    configure_postgresql_port "$port"
-fi
+configure_postgresql_port_and_host
 
 # Start PostgreSQL service
 start_postgresql
@@ -118,7 +155,7 @@ read -r -a databases <<< "$db_names"
 
 for db in "${databases[@]}"; do
     # Check if the database exists, create if it doesn't
-    if ! check_db_exists "$db"; then
+    if ! check_database_exists "$db"; then
         create_database "$db"
     else
         echo "Database $db already exists."

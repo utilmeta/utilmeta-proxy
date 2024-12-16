@@ -16,6 +16,8 @@ class ServiceEnvironment(Env):
     DB_SSL_CAFILE: str = None
     # --------------------------
 
+    LOG_PATH: str = None
+
     BASE_URL: str
     BIND_PORT: int = None
     PRIVATE: bool = False       # whether this is an intranet cluster

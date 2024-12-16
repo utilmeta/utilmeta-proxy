@@ -1,5 +1,5 @@
 from utilmeta import UtilMeta
-from config.env import env
+from utilmeta_proxy.config.env import env
 import httpx
 
 
@@ -37,7 +37,7 @@ def configure(service: UtilMeta):
         ssl_ctx.verify_mode = ssl.CERT_NONE
 
     service.use(DjangoSettings(
-        apps_package='domain',
+        apps=['utilmeta_proxy.domain.service'],
         secret_key=env.DJANGO_SECRET_KEY,
     ))
     service.use(DatabaseConnections({

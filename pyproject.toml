@@ -60,6 +60,9 @@ exclude = [
     "/tests"
 ]
 
+[tools.setuptools.package-data]
+utilmeta-proxy=["*.sh", "*.ini"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["utilmeta_proxy"]
 

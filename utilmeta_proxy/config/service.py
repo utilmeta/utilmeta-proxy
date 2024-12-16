@@ -7,8 +7,8 @@ import sys
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-from config.conf import configure
-from config.env import env
+from utilmeta_proxy.config.conf import configure
+from utilmeta_proxy.config.env import env
 from utilmeta_proxy import __version__
 port = urllib.parse.urlparse(env.BASE_URL).port or env.BIND_PORT or 8888
 

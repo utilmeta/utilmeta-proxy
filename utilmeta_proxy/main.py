@@ -1,5 +1,5 @@
-from config.service import service
-from service.connect import connect_to_supervisor
+from utilmeta_proxy.config.service import service
+from utilmeta_proxy.service.connect import connect_to_supervisor
 
 app = service.application()
 

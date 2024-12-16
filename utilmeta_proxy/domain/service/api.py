@@ -2,12 +2,12 @@ from utilmeta.core import api, request
 from utilmeta.ops.proxy import RegistrySchema
 from utilmeta.ops.config import Operations
 from utilmeta.utils import exceptions, url_join, fast_digest, json_dumps, adapt_async
-from config.env import env, CLUSTER_KEY, PUBLIC_BASE_URL
 from urllib.parse import urlparse
 from .models import Service, ServiceNameRecord, Instance
 from .schema import InstanceRegistrySchema, InstanceSchema
 from django.db import models
 from starlette.concurrency import run_in_threadpool
+from utilmeta_proxy.config.env import env, CLUSTER_KEY, PUBLIC_BASE_URL
 
 ops_config = Operations.config()
 
@@ -63,14 +63,18 @@ class RegistryAPI(api.API):
             )
         ).afirst()
         if not service:
-            service = await Service.objects.acreate(
+            service, created = await Service.objects.aget_or_create(
                 name=data.name,
-                node_id=instance_res.node_id,
+                defaults=dict(node_id=instance_res.node_id,)
             )
         await ServiceNameRecord.objects.aget_or_create(
             service=service,
             name=data.name,
         )
+        if data.name != service.name:
+            service.name = data.name
+            await service.asave(update_fields=['name'])
+
         # use data.instance_id to identify and auth
 
         instance = await Instance.objects.filter(
@@ -110,9 +114,6 @@ class RegistryAPI(api.API):
             # self.connect_supervisor(service, data=data)
             await run_in_threadpool(self.connect_supervisor, service, data=data)
 
-            if self.node_id:
-                service.node_id = self.node_id
-                await service.asave(update_fields=['node_id'])
         elif data.resources:
             # has resources to sync
             # if node has checked etag and sent None, we just ignore
@@ -143,7 +144,7 @@ class RegistryAPI(api.API):
             print('resource is identical to supervisor')
             return
 
-        manager = ResourcesManager(ops_config)
+        manager = ResourcesManager()
         with SupervisorClient(
             base_url=supervisor.base_url,
             node_key=supervisor.public_key,
@@ -225,6 +226,11 @@ class RegistryAPI(api.API):
                         raise ValueError('supervisor failed to create')
 
                 self.node_id = supervisor_obj.node_id
+
+                if self.node_id:
+                    service.node_id = self.node_id
+                    # save node here so that resources can be synced
+                    service.save(update_fields=['node_id'])
 
                 update_service_supervisor(
                     service=supervisor_obj.service,

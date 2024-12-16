@@ -1,11 +1,11 @@
 from utilmeta.core import api, request, cli, response
 from utype.types import *
 from utilmeta.utils import exceptions, DEFAULT_IDEMPOTENT_METHODS, DEFAULT_RETRY_ON_STATUSES, Headers, is_hop_by_hop
-from config.env import env, CLUSTER_KEY
-from domain.service.models import Service, Instance
 from django.db import models
 from utilmeta.ops.config import Operations
 from utilmeta.ops.log import request_logger, Logger
+from utilmeta_proxy.config.env import env, CLUSTER_KEY
+from utilmeta_proxy.domain.service.models import Service, Instance
 
 UTILMETA_HEADER_PREFIX = 'x-utilmeta-'
 EXCLUDE_HEADERS = [
@@ -384,6 +384,8 @@ class ProxyAPI(api.API):
             raise exceptions.NotFound
         self.service_name = self.supervisor.service
         self.headers['x-utilmeta-node-id'] = self.headers['x-node-id'] = self.node_id
+        self.headers['x-forwarded-for'] = str(self.request.ip_address)
+        # set remote IP
         await self.handle_service()
         # do not proxy this request unless in has validated token
         # we don't implement detailed authentication here
