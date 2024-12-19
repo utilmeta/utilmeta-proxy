@@ -232,10 +232,7 @@ class RegistryAPI(api.API):
                     # save node here so that resources can be synced
                     service.save(update_fields=['node_id'])
 
-                update_service_supervisor(
-                    service=supervisor_obj.service,
-                    node_id=supervisor_obj.node_id
-                )
+                update_service_supervisor(supervisor_obj)
                 if not supervisor_obj.local:
                     if not supervisor_obj.public_key:
                         raise ValueError('supervisor failed to create: no public key')

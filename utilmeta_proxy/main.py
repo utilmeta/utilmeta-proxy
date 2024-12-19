@@ -5,6 +5,5 @@ app = service.application()
 
 connect_to_supervisor()
 
-
 if __name__ == '__main__':
     service.run()

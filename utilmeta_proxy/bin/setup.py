@@ -1,7 +1,7 @@
 import os.path
 
 from urllib.parse import urlparse
-from utilmeta.utils import localhost, get_server_ips, detect_package_manager
+from utilmeta.utils import localhost, get_server_ips, detect_package_manager, requires
 from utilmeta import UtilMeta
 from utilmeta.core.orm.databases import DatabaseConnections
 from utilmeta_proxy.config.env import env
@@ -38,8 +38,10 @@ class ProxySetup:
         return env.DB_HOST in server_ips
 
     def connect_postgresql(self):
+        requires('psycopg2')
         import psycopg2
         from psycopg2 import OperationalError, Error
+
         for db in [self.default_database, self.ops_database]:
             try:
                 # Attempt to connect to the PostgreSQL database
@@ -54,7 +56,8 @@ class ProxySetup:
             except OperationalError as e:
                 if "password" in str(e).lower() or "authentication" in str(e).lower():
                     # Invalid credentials are not considered as the database being down
-                    raise ValueError(f"Invalid credentials provided for database: {db.protected_dsn}")
+                    print(f"Invalid credentials provided for database: {db.protected_dsn}")
+                    return False
                 print(f"Database connection error: {e}")
                 return False
             except Error as e:
@@ -103,7 +106,7 @@ class ProxySetup:
             except OperationalError as e:
                 # Handle different error cases
                 if e.args[0] == 1045:
-                    raise ValueError(f"Invalid username or password for database: {db.protected_dsn}")
+                    print(f"Invalid username or password for database: {db.protected_dsn}")
                 elif e.args[0] == 2003:
                     print("MySQL server is down or unreachable.")
                 else:

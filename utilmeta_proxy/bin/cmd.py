@@ -28,7 +28,11 @@ class ProxyCommand(BaseCommand):
     @command
     def check(self, print_down: bool = True):
         self.intro()
-        with Client(base_url=env.BASE_URL, fail_silently=True) as client:
+        with Client(
+            base_url=env.BASE_URL,
+            fail_silently=True,
+            allow_redirects=True
+        ) as client:
             resp = client.get('/')
             if resp.success:
                 data = resp.data
@@ -40,11 +44,12 @@ class ProxyCommand(BaseCommand):
         return False
 
     @command
-    def setup(self):
+    def setup(self, force: bool = False):
         # check if service is connected
         print(f'setup for utilmeta-proxy: {self.service.version_str} at {env.BASE_URL}')
-        if self.check(print_down=False):
+        if not force and self.check(print_down=False):
             print('utilmeta-proxy is already live, quit setup')
+            print('(if your env vars has changed, use [utilmeta-proxy reconfigure] to re-initialize the service)')
             exit(0)
         # if already setup, skip
         from .setup import setup_proxy
@@ -52,6 +57,10 @@ class ProxyCommand(BaseCommand):
         # -------------
         os.system(f'{sys.executable} -m utilmeta migrate --ini={self.ini_path}')
         self.restart()
+
+    @command
+    def reconfigure(self):
+        return self.setup(force=True)
 
     @command
     def restart(self):
@@ -103,6 +112,11 @@ class ProxyCommand(BaseCommand):
             print(content)
         write_to(file, content)
         print('export utilmeta-proxy cluster environment variables to {}'.format(file))
+
+    # @command
+    # def delete_proxy(self):
+    #     print('You are going to delete utilmeta-proxy service node in UtilMeta platform')
+    #     from utilmeta.ops.connect import delete_supervisor
 
     @command('-v', 'version')
     def version(self):

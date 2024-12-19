@@ -27,8 +27,15 @@ add_postgresql_repository() {
         wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
         sudo apt update
     elif [[ "$package_manager" == "yum" ]]; then
+       # Detect RHEL version and architecture
+        local rhel_version
+        rhel_version=$(rpm -E %rhel)
+        local architecture
+        architecture=$(uname -m)
+        # Construct the correct RPM repository URL for the architecture
+        local repo_url="https://download.postgresql.org/pub/repos/yum/reporpms/EL-${rhel_version}-${architecture}/pgdg-redhat-repo-latest.noarch.rpm"
         # Add PostgreSQL repository for RHEL-based systems
-        sudo yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-$(rpm -E %rhel)/pgdg-redhat-repo-latest.noarch.rpm
+        sudo yum install -y "$repo_url"
     fi
 }
 
@@ -99,18 +106,18 @@ start_postgresql() {
 
 check_database_exists() {
     local db_name=$1
-    sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$db_name';" | grep -q 1
+    sudo -i -u postgres psql -p $port -tAc "SELECT 1 FROM pg_database WHERE datname='$db_name';" | grep -q 1
 }
 
 create_database() {
     local db_name=$1
     echo "Creating database '$db_name'..."
-    sudo -u postgres psql -c "CREATE DATABASE $db_name;"
+    sudo -i -u postgres psql -p $port -c "CREATE DATABASE $db_name;"
 }
 
 check_user_exists() {
     local user=$1
-    sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$user';" | grep -q 1
+    sudo -i -u postgres psql -p $port -tAc "SELECT 1 FROM pg_roles WHERE rolname='$user';" | grep -q 1
 }
 
 # Function to create a user if it does not exist
@@ -118,7 +125,7 @@ create_user() {
     local user=$1
     local pass=$2
     echo "Creating user $user..."
-    sudo -u postgres psql -c "CREATE USER $user WITH PASSWORD '$pass';"
+    sudo -i -u postgres psql -p $port -c "CREATE USER $user WITH PASSWORD '$pass';"
 }
 
 # Function to grant access to the user
@@ -126,7 +133,7 @@ grant_access() {
     local user=$1
     local db_name=$2
     echo "Granting access to user $user on database $db_name..."
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $db_name TO $user;"
+    sudo -i -u postgres psql -p $port -c "GRANT ALL PRIVILEGES ON DATABASE $db_name TO $user;"
 }
 
 # Main Script
